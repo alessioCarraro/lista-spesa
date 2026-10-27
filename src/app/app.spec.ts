@@ -17,6 +17,7 @@ describe('App', () => {
             error: () => null,
             remainingCount: () => 0,
             completedCount: () => 0,
+            productCount: () => 0,
             categoryStats: () => [],
             addItem: jasmine.createSpy('addItem'),
             toggleItem: jasmine.createSpy('toggleItem'),

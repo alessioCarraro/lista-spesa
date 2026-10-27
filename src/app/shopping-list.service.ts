@@ -4,12 +4,16 @@ import { FirestoreShoppingListService } from './firestore-shopping-list.service'
 export interface ShoppingItem {
   id: string;
   name: string;
+  /** Number of individual packages/products. */
   quantity: number;
   done: boolean;
   createdAt: number;
   category: ShoppingCategoryId;
+  amountPerUnit: number | null;
+  measureUnit: MeasureUnit | null;
 }
 
+export type MeasureUnit = 'kg' | 'g' | 'L' | 'ml';
 export type ShoppingFilter = 'all' | 'active' | 'completed';
 export type ShoppingCategoryId =
   | 'alcolici'
@@ -63,6 +67,31 @@ export function resolveShoppingCategory(value: unknown, name: string): ShoppingC
   return isShoppingCategoryId(value) ? value : inferShoppingCategory(name);
 }
 
+export function normalizeMeasure(
+  amountPerUnit: number | null,
+  measureUnit: MeasureUnit | null,
+  productCount: number,
+): { weightKg: number; volumeL: number } {
+  if (amountPerUnit === null || measureUnit === null) {
+    return { weightKg: 0, volumeL: 0 };
+  }
+
+  const total = amountPerUnit * productCount;
+  if (measureUnit === 'kg' || measureUnit === 'g') {
+    return { weightKg: measureUnit === 'kg' ? total : total / 1000, volumeL: 0 };
+  }
+  return { weightKg: 0, volumeL: measureUnit === 'L' ? total : total / 1000 };
+}
+
+export function formatTotalMeasure(amount: number, dimension: 'weight' | 'volume'): string {
+  const unit = dimension === 'weight' ? 'kg' : 'L';
+  const smallUnit = dimension === 'weight' ? 'g' : 'ml';
+  const converted = amount < 1 ? amount * 1000 : amount;
+  const displayUnit = amount < 1 ? smallUnit : unit;
+  const formatted = new Intl.NumberFormat('it-IT', { maximumFractionDigits: 2 }).format(converted);
+  return `${formatted} ${displayUnit}`;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ShoppingListService {
   private readonly firestore = inject(FirestoreShoppingListService);
@@ -77,21 +106,33 @@ export class ShoppingListService {
   readonly isSignedIn = this.signedInState.asReadonly();
   readonly error = this.errorState.asReadonly();
   readonly isCloudConfigured = this.firestore.isConfigured;
-  readonly remainingCount = computed(() => this.itemState().filter((item) => !item.done).length);
-  readonly completedCount = computed(() => this.itemState().filter((item) => item.done).length);
+  readonly productCount = computed(() => this.itemState().reduce((sum, item) => sum + item.quantity, 0));
+  readonly remainingCount = computed(() => this.itemState().filter((item) => !item.done).reduce((sum, item) => sum + item.quantity, 0));
+  readonly completedCount = computed(() => this.itemState().filter((item) => item.done).reduce((sum, item) => sum + item.quantity, 0));
   readonly categoryStats = computed(() => {
     const items = this.itemState();
-    const total = items.length;
+    const totalProducts = items.reduce((sum, item) => sum + item.quantity, 0);
     return SHOPPING_CATEGORIES.map((category) => {
       const categorizedItems = items.filter((item) => resolveShoppingCategory(item.category, item.name) === category.id);
-      const count = categorizedItems.length;
-      const completed = categorizedItems.filter((item) => item.done).length;
+      const count = categorizedItems.reduce((sum, item) => sum + item.quantity, 0);
+      const completed = categorizedItems.filter((item) => item.done).reduce((sum, item) => sum + item.quantity, 0);
+      const totals = categorizedItems.reduce(
+        (sum, item) => {
+          const itemTotal = normalizeMeasure(item.amountPerUnit, item.measureUnit, item.quantity);
+          return {
+            weightKg: sum.weightKg + itemTotal.weightKg,
+            volumeL: sum.volumeL + itemTotal.volumeL,
+          };
+        },
+        { weightKg: 0, volumeL: 0 },
+      );
       return {
         ...category,
         count,
         completed,
-        sharePercent: total === 0 ? 0 : Math.round((count / total) * 100),
+        sharePercent: totalProducts === 0 ? 0 : Math.round((count / totalProducts) * 100),
         progressPercent: count === 0 ? 0 : Math.round((completed / count) * 100),
+        ...totals,
       };
     }).filter((category) => category.count > 0).sort((a, b) => b.count - a.count);
   });
@@ -150,7 +191,13 @@ export class ShoppingListService {
     }
   }
 
-  async addItem(name: string, quantity: number, category: ShoppingCategoryId): Promise<void> {
+  async addItem(
+    name: string,
+    quantity: number,
+    category: ShoppingCategoryId,
+    amountPerUnit: number | null,
+    measureUnit: MeasureUnit | null,
+  ): Promise<void> {
     const item: ShoppingItem = {
       id: crypto.randomUUID(),
       name,
@@ -158,6 +205,8 @@ export class ShoppingListService {
       done: false,
       createdAt: Date.now(),
       category,
+      amountPerUnit,
+      measureUnit,
     };
 
     await this.persistChange(async () => {
@@ -225,10 +274,17 @@ export class ShoppingListService {
         if (!Array.isArray(parsed)) {
           throw new Error('Il formato dei dati salvati non è valido.');
         }
-        this.itemState.set((parsed as ShoppingItem[]).map((item) => ({
-          ...item,
-          category: resolveShoppingCategory(item.category, item.name),
-        })));
+        this.itemState.set((parsed as ShoppingItem[]).map((item) => {
+          const amountPerUnit = item.amountPerUnit;
+          return {
+            ...item,
+            category: resolveShoppingCategory(item.category, item.name),
+            amountPerUnit: amountPerUnit !== null && Number.isFinite(amountPerUnit) && amountPerUnit > 0
+              ? amountPerUnit
+              : null,
+            measureUnit: ['kg', 'g', 'L', 'ml'].includes(item.measureUnit ?? '') ? item.measureUnit : null,
+          };
+        }));
       }
     } catch (error) {
       this.errorState.set(`Impossibile leggere la lista salvata: ${this.messageFor(error)}`);

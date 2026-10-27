@@ -90,11 +90,11 @@
           <div class="flex gap-2">
             <div class="min-w-24 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
               <span class="block text-xl font-bold text-slate-900">{{ shoppingList.remainingCount() }}</span>
-              <span class="text-xs text-slate-500">da prendere</span>
+              <span class="text-xs text-slate-500">prodotti da prendere</span>
             </div>
             <div class="min-w-24 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
               <span class="block text-xl font-bold text-slate-900">{{ shoppingList.completedCount() }}</span>
-              <span class="text-xs text-slate-500">nel carrello</span>
+              <span class="text-xs text-slate-500">prodotti presi</span>
             </div>
           </div>
         </div>
@@ -106,7 +106,7 @@
             <p class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Tutto sotto controllo</p>
             <h2 id="statistics-title" class="mt-1 text-xl font-bold tracking-tight text-slate-900">Statistiche per categoria</h2>
           </div>
-          <p class="text-sm text-slate-500">Articoli presi e quota sul totale della lista.</p>
+          <p class="text-sm text-slate-500">Ogni pezzo conta, inclusi peso e volume delle confezioni.</p>
         </div>
         @if (shoppingList.categoryStats().length === 0) {
           <div class="rounded-2xl bg-[#f7f8f4] px-4 py-5 text-sm text-slate-500">
@@ -119,18 +119,30 @@
               <article class="rounded-2xl border border-slate-100 bg-[#fbfcfa] p-4">
                 <div class="flex items-start justify-between gap-3">
                   <div class="flex min-w-0 items-center gap-2.5">
-                    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-xl" aria-hidden="true">{{ stat.emoji }}</span>
+                    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl" [ngClass]="categoryTone(stat.id)" aria-hidden="true">
+                      <svg [lucideIcon]="categoryIcons[stat.id]" class="h-5 w-5" [attr.aria-label]="stat.label" role="img"></svg>
+                    </span>
                     <div class="min-w-0">
                       <h3 class="truncate font-semibold text-slate-800">{{ stat.label }}</h3>
-                      <p class="text-xs text-slate-500">{{ stat.count }} {{ stat.count === 1 ? 'articolo' : 'articoli' }} · {{ stat.sharePercent }}% della lista</p>
+                      <p class="text-xs text-slate-500">{{ stat.count }} {{ stat.count === 1 ? 'prodotto' : 'prodotti' }} · {{ stat.sharePercent }}% dei pezzi</p>
                     </div>
                   </div>
-                  <span class="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-500">{{ stat.completed }}/{{ stat.count }} presi</span>
+                  <span class="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-500">{{ stat.completed }}/{{ stat.count }}</span>
                 </div>
-                <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" [attr.aria-label]="'Articoli presi in ' + stat.label" aria-valuemin="0" [attr.aria-valuemax]="stat.count" [attr.aria-valuenow]="stat.completed">
+                <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" [attr.aria-label]="'Prodotti presi in ' + stat.label" aria-valuemin="0" [attr.aria-valuemax]="stat.count" [attr.aria-valuenow]="stat.completed">
                   <div class="h-full rounded-full bg-emerald-600 transition-all" [style.width.%]="stat.progressPercent"></div>
                 </div>
-                <p class="mt-1.5 text-right text-xs text-slate-400">{{ stat.progressPercent }}% preso</p>
+                <div class="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
+                  <span class="text-slate-400">{{ stat.completed }} di {{ stat.count }} prodotti presi · {{ stat.progressPercent }}%</span>
+                  <span class="flex flex-wrap gap-x-2 font-medium text-slate-600">
+                    @if (stat.weightKg > 0) {
+                      <span>{{ formatMeasure(stat.weightKg, 'weight') }}</span>
+                    }
+                    @if (stat.volumeL > 0) {
+                      <span>{{ formatMeasure(stat.volumeL, 'volume') }}</span>
+                    }
+                  </span>
+                </div>
               </article>
             }
           </div>
@@ -141,7 +153,7 @@
       </section>
 
       <section class="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.28)] sm:p-6">
-        <form class="flex flex-col gap-3 sm:flex-row" (ngSubmit)="addItem()">
+        <form class="flex flex-col gap-3" (ngSubmit)="addItem()">
           <label class="sr-only" for="item-name">Nome articolo</label>
           <input
             id="item-name"
@@ -151,41 +163,73 @@
             [(ngModel)]="itemName"
             maxlength="80"
             autocomplete="off"
-            placeholder="Per esempio: pomodori"
+            placeholder="Nome prodotto, per esempio: birra"
             required
           />
-          <label class="sr-only" for="item-quantity">Quantità</label>
-          <div class="flex flex-wrap gap-3 sm:flex-nowrap">
-            <label class="sr-only" for="item-category">Categoria</label>
+          <div class="grid grid-cols-[minmax(0,1fr)_6rem] items-end gap-3 sm:grid-cols-[minmax(0,1fr)_8rem]">
+            <label class="block min-w-0 text-xs font-medium text-slate-500">
+              Categoria
             <select
               id="item-category"
-              class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3.5 text-sm outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10 sm:w-44 sm:flex-none"
+              class="mt-1.5 block w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3.5 text-sm outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10"
               name="category"
               [(ngModel)]="selectedCategory"
-              aria-label="Categoria articolo"
+              aria-label="Categoria prodotto"
             >
               @for (category of categories; track category.id) {
-                <option [ngValue]="category.id">{{ category.emoji }} {{ category.label }}</option>
+                <option [ngValue]="category.id">{{ category.label }}</option>
               }
             </select>
+            </label>
+            <label class="block text-xs font-medium text-slate-500">
+              N. prodotti
             <input
               id="item-quantity"
-              class="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3.5 text-center text-base outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10"
+              class="mt-1.5 block w-full min-w-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3.5 text-center text-base outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10"
               type="number"
               name="quantity"
               [(ngModel)]="quantity"
               min="1"
               max="999"
-              aria-label="Quantità"
+              aria-label="Numero prodotti singoli"
               required
             />
-            <button class="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3.5 font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-700/20 sm:flex-none" type="submit">
+            </label>
+          </div>
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <div class="flex min-w-0 flex-1">
+              <input
+                id="item-amount"
+                class="min-w-0 flex-1 rounded-l-xl border border-r-0 border-slate-200 bg-slate-50 px-4 py-3.5 text-base outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10"
+                type="number"
+                name="amountPerUnit"
+                [(ngModel)]="amountPerUnit"
+                min="0.01"
+                max="99999"
+                step="any"
+                aria-label="Peso o volume per singolo prodotto"
+                placeholder="Peso/volume per prodotto (facoltativo)"
+              />
+              <select
+                class="w-20 rounded-r-xl border border-slate-200 bg-slate-100 px-2 text-sm font-medium text-slate-700 outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
+                name="measureUnit"
+                [(ngModel)]="measureUnit"
+                aria-label="Unità di misura per prodotto"
+              >
+                <option value="L">L</option>
+                <option value="ml">ml</option>
+                <option value="kg">kg</option>
+                <option value="g">g</option>
+              </select>
+            </div>
+            <button class="flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3.5 font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-700/20 sm:min-w-36" type="submit">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" class="h-5 w-5">
                 <path d="M10 4v12m6-6H4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
               </svg>
               Aggiungi
             </button>
           </div>
+          <p class="text-xs leading-5 text-slate-400">Indica quanti prodotti singoli servono e, se vuoi, il peso o volume di ciascuno. Ad esempio: 3 bottiglie × 0,75 L.</p>
         </form>
 
         @if (shoppingList.error()) {
@@ -250,10 +294,13 @@
                     </svg>
                   }
                 </button>
-                <span class="min-w-0 flex-1 truncate text-base font-medium transition" [class.text-slate-400]="item.done" [class.line-through]="item.done">
-                  {{ item.name }}
+                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl" [ngClass]="categoryTone(item.category)" aria-hidden="true">
+                  <svg [lucideIcon]="categoryIcons[item.category]" class="h-5 w-5"></svg>
                 </span>
-                <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-600">× {{ item.quantity }}</span>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-base font-semibold transition" [class.text-slate-400]="item.done" [class.line-through]="item.done">{{ item.name }}</p>
+                  <p class="mt-0.5 truncate text-xs text-slate-400">{{ categoryName(item.category) }} · {{ itemMeasurement(item) }}</p>
+                </div>
                 <button
                   type="button"
                   class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-300 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-4 focus:ring-red-100"
@@ -271,7 +318,7 @@
 
         @if (shoppingList.items().length > 0) {
           <div class="mt-2 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-400">
-            <span>{{ shoppingList.items().length }} {{ shoppingList.items().length === 1 ? 'articolo' : 'articoli' }} in lista</span>
+            <span>{{ shoppingList.productCount() }} {{ shoppingList.productCount() === 1 ? 'prodotto singolo' : 'prodotti singoli' }} in lista</span>
             <span>{{ shoppingList.remainingCount() === 0 ? 'Pronti per la vacanza ✨' : 'Ricordate anche acqua e snack' }}</span>
           </div>
         }

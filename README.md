@@ -4,6 +4,8 @@ Applicazione responsive per gestire una lista della spesa con Angular, TypeScrip
 
 Ogni articolo può essere assegnato a una categoria. Le statistiche mostrano il numero di articoli per categoria, la quota percentuale sul totale e l'avanzamento degli acquisti; per le liste già salvate, la categoria viene dedotta dal nome quando possibile.
 
+La quantità indica il numero di singoli prodotti/confezioni; il peso o volume per confezione è facoltativo. I totali di categoria sommano automaticamente grammi in kg e ml in litri, mantenendo separati peso e volume. Ad esempio, 3 bottiglie da 0,75 L vengono conteggiate come 3 prodotti e 2,25 L.
+
 ## Avvio in locale
 
 ```bash

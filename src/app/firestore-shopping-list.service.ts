@@ -71,6 +71,12 @@ export class FirestoreShoppingListService {
                 done: data['done'] as boolean,
                 createdAt: data['createdAt'] as number,
                 category: resolveShoppingCategory(data['category'], data['name'] as string),
+                amountPerUnit: typeof data['amountPerUnit'] === 'number' && data['amountPerUnit'] > 0
+                  ? data['amountPerUnit']
+                  : null,
+                measureUnit: ['kg', 'g', 'L', 'ml'].includes(data['measureUnit'] as string)
+                  ? data['measureUnit'] as ShoppingItem['measureUnit']
+                  : null,
               };
             }));
           }, error);
