@@ -85,6 +85,10 @@ export class App {
   protected amountPerUnit: number | null = null;
   protected email = '';
   protected password = '';
+  protected readonly editingItemId = signal<string | null>(null);
+  protected editQuantity = 1;
+  protected editAmountPerUnit: number | null = null;
+  protected editMeasureUnit: MeasureUnit = 'L';
 
   protected async addItem(): Promise<void> {
     const name = this.itemName.trim();
@@ -115,6 +119,38 @@ export class App {
 
   protected categoryName(category: ShoppingCategoryId): string {
     return this.categories.find((entry) => entry.id === category)?.label ?? 'Altro';
+  }
+
+  protected beginEdit(item: ShoppingItem): void {
+    this.editingItemId.set(item.id);
+    this.editQuantity = item.quantity;
+    this.editAmountPerUnit = item.amountPerUnit;
+    this.editMeasureUnit = item.measureUnit ?? 'L';
+  }
+
+  protected cancelEdit(): void {
+    this.editingItemId.set(null);
+  }
+
+  protected async saveEdit(item: ShoppingItem): Promise<void> {
+    if (
+      !Number.isInteger(this.editQuantity)
+      || this.editQuantity < 1
+      || (this.editAmountPerUnit !== null
+        && (!Number.isFinite(this.editAmountPerUnit) || this.editAmountPerUnit <= 0))
+    ) {
+      return;
+    }
+
+    await this.shoppingList.updateItemDetails({
+      ...item,
+      quantity: this.editQuantity,
+      amountPerUnit: this.editAmountPerUnit,
+      measureUnit: this.editAmountPerUnit === null ? null : this.editMeasureUnit,
+    });
+    if (!this.shoppingList.error()) {
+      this.editingItemId.set(null);
+    }
   }
 
   protected categoryTone(category: ShoppingCategoryId): string {

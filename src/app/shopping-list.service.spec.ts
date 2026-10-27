@@ -63,6 +63,29 @@ describe('ShoppingListService', () => {
     ]);
   });
 
+  it('updates individual product count and package size in the shared list state', async () => {
+    await shoppingList.addItem('Jager', 2, 'alcolici', 700, 'ml');
+    const item = shoppingList.items()[0];
+
+    await shoppingList.updateItemDetails({
+      ...item,
+      quantity: 3,
+      amountPerUnit: 1,
+      measureUnit: 'L',
+    });
+
+    expect(shoppingList.items()[0]).toEqual(jasmine.objectContaining({
+      quantity: 3,
+      amountPerUnit: 1,
+      measureUnit: 'L',
+    }));
+    expect(shoppingList.remainingCount()).toBe(3);
+    expect(shoppingList.categoryStats()[0]).toEqual(jasmine.objectContaining({
+      count: 3,
+      volumeL: 3,
+    }));
+  });
+
   it('formats total weights and volumes using readable Italian units', () => {
     expect(formatTotalMeasure(0.5, 'weight')).toBe('500 g');
     expect(formatTotalMeasure(1.25, 'weight')).toBe('1,25 kg');
@@ -132,6 +155,56 @@ describe('ShoppingListService', () => {
         category: 'alcolici',
         amountPerUnit: null,
         measureUnit: null,
+      }),
+    ]);
+  });
+
+  it('merges missing products from this browser into an already populated cloud list', async () => {
+    localStorage.setItem('spesa-semplice-items', JSON.stringify([
+      { id: 'pc-product', name: 'Birra', quantity: 5, done: false, createdAt: 1 },
+    ]));
+    const cloudItem = {
+      id: 'phone-product',
+      name: 'Jager',
+      quantity: 1,
+      done: false,
+      createdAt: 2,
+      category: 'alcolici',
+      amountPerUnit: 700,
+      measureUnit: 'ml',
+    };
+
+    let receiveItems: ((items: typeof cloudItem[]) => void) | undefined;
+    const migrateItems = jasmine.createSpy('migrateItems').and.resolveTo();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [{
+        provide: FirestoreShoppingListService,
+        useValue: {
+          isConfigured: () => true,
+          watchAuth: (next: (user: { uid: string } | null) => void) => {
+            next({ uid: 'personal-account' });
+            return () => {};
+          },
+          watchItems: (next: (items: typeof cloudItem[]) => void) => {
+            receiveItems = next;
+            return () => {};
+          },
+          migrateItems,
+        },
+      }],
+    });
+
+    TestBed.inject(ShoppingListService);
+    receiveItems?.([cloudItem]);
+    await Promise.resolve();
+
+    expect(migrateItems).toHaveBeenCalledWith([
+      jasmine.objectContaining({
+        id: 'pc-product',
+        name: 'Birra',
+        quantity: 5,
+        category: 'alcolici',
       }),
     ]);
   });

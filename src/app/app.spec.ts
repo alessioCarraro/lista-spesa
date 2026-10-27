@@ -23,6 +23,7 @@ describe('App', () => {
             addItem: jasmine.createSpy('addItem'),
             toggleItem: jasmine.createSpy('toggleItem'),
             removeItem: jasmine.createSpy('removeItem'),
+            updateItemDetails: jasmine.createSpy('updateItemDetails'),
             clearCompleted: jasmine.createSpy('clearCompleted'),
             signIn: jasmine.createSpy('signIn'),
             signOut: jasmine.createSpy('signOut'),

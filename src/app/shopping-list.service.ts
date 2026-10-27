@@ -160,22 +160,28 @@ export class ShoppingListService {
 
       if (user) {
         this.loadingState.set(true);
-        let migrationAttempted = false;
+        let migrationInProgress = false;
         this.unsubscribeItems = this.firestore.watchItems(
           (items) => {
-            if (items.length === 0 && !migrationAttempted) {
-              migrationAttempted = true;
+            if (!migrationInProgress) {
               try {
                 const localItems = this.readSavedItems();
-                if (localItems.length > 0) {
+                const cloudIds = new Set(items.map((item) => item.id));
+                const itemsToMigrate = localItems.filter((item) => !cloudIds.has(item.id));
+                if (itemsToMigrate.length > 0) {
+                  migrationInProgress = true;
                   this.loadingState.set(true);
-                  void this.firestore.migrateItems(localItems).then(() => {
+                  void this.firestore.migrateItems(itemsToMigrate).then(() => {
                     localStorage.removeItem(STORAGE_KEY);
+                    migrationInProgress = false;
                   }).catch((error: unknown) => {
                     this.errorState.set(this.messageFor(error));
                     this.loadingState.set(false);
                   });
                   return;
+                }
+                if (localItems.length > 0) {
+                  localStorage.removeItem(STORAGE_KEY);
                 }
               } catch (error) {
                 this.errorState.set(`Impossibile trasferire la lista salvata su questo dispositivo: ${this.messageFor(error)}`);
@@ -285,6 +291,25 @@ export class ShoppingListService {
   async clearCompleted(): Promise<void> {
     const completed = this.itemState().filter((item) => item.done);
     await Promise.all(completed.map((item) => this.removeItem(item.id)));
+  }
+
+  async updateItemDetails(updatedItem: ShoppingItem): Promise<void> {
+    if (this.requiresCloudSetup()) {
+      this.errorState.set('La lista non è sincronizzata. Configura Firebase su Vercel prima di modificarla.');
+      return;
+    }
+    if (!Number.isInteger(updatedItem.quantity) || updatedItem.quantity < 1) {
+      this.errorState.set('Il numero di prodotti deve essere un intero maggiore di zero.');
+      return;
+    }
+    if (
+      updatedItem.amountPerUnit !== null
+      && (!Number.isFinite(updatedItem.amountPerUnit) || updatedItem.amountPerUnit <= 0)
+    ) {
+      this.errorState.set('Il peso o volume per prodotto deve essere maggiore di zero.');
+      return;
+    }
+    await this.updateItem(updatedItem);
   }
 
   private async updateItem(updatedItem: ShoppingItem): Promise<void> {
