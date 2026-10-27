@@ -1,0 +1,289 @@
+<main class="min-h-screen bg-[#f7f8f4] px-4 pb-12 pt-6 text-slate-800 sm:px-6 sm:pt-10">
+  <div class="mx-auto max-w-3xl">
+    <header class="mb-9 flex items-center justify-between sm:mb-12">
+      <a class="flex items-center gap-3" href="/" aria-label="Spesa semplice, home">
+        <span class="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-700 text-white shadow-sm">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" class="h-6 w-6">
+            <path d="M5 8h14l-1 12H6L5 8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+            <path d="M9 9V6a3 3 0 0 1 6 0v3M9 13h.01M15 13h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+        </span>
+        <span>
+          <span class="block text-lg font-bold tracking-tight text-slate-900">Spesa semplice</span>
+          <span class="block text-xs text-slate-500">La spesa per la vacanza tra amici</span>
+        </span>
+      </a>
+
+      <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-sm">
+        @if (shoppingList.isCloudConfigured()) {
+          @if (shoppingList.isSignedIn()) {
+            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+            <span class="hidden sm:inline">Sincronizzazione attiva</span>
+            <button type="button" class="ml-1 text-slate-400 transition hover:text-slate-700" (click)="shoppingList.signOut()" aria-label="Esci">
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" class="h-4 w-4">
+                <path d="M8 3H4v14h4m4-3 4-4-4-4m4 4H8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          } @else {
+            <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+            <span>Accesso richiesto</span>
+          }
+        } @else {
+          <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+          <span>Salvata su questo dispositivo</span>
+        }
+      </div>
+    </header>
+
+    @if (shoppingList.isCloudConfigured() && !shoppingList.isSignedIn()) {
+      <section class="mx-auto max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div class="mb-6 grid h-12 w-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-700">
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" class="h-6 w-6">
+            <path d="M7 10V7a5 5 0 0 1 10 0v3m-12 0h14v11H5V10Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900">Accedi alla tua lista</h1>
+        <p class="mt-2 text-sm leading-6 text-slate-500">Accedi alla lista condivisa per organizzare provviste e brindisi in compagnia, con calma e responsabilità.</p>
+
+        <form class="mt-7 space-y-4" (ngSubmit)="signIn()">
+          <label class="block text-sm font-medium text-slate-700">
+            Email
+            <input
+              class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
+              type="email"
+              name="email"
+              [(ngModel)]="email"
+              autocomplete="username"
+              required
+              placeholder="nome@esempio.it"
+            />
+          </label>
+          <label class="block text-sm font-medium text-slate-700">
+            Password
+            <input
+              class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/10"
+              type="password"
+              name="password"
+              [(ngModel)]="password"
+              autocomplete="current-password"
+              required
+              placeholder="La tua password"
+            />
+          </label>
+          <button class="w-full rounded-xl bg-emerald-700 px-5 py-3 font-semibold text-white transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-700/20 disabled:cursor-not-allowed disabled:opacity-60" type="submit" [disabled]="shoppingList.isLoading()">
+            {{ shoppingList.isLoading() ? 'Accesso in corso…' : 'Accedi' }}
+          </button>
+        </form>
+
+        @if (shoppingList.error()) {
+          <p class="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{{ shoppingList.error() }}</p>
+        }
+      </section>
+    } @else {
+      <section class="mb-7">
+        <p class="mb-2 text-sm font-semibold uppercase tracking-[0.16em] text-emerald-700">Vacanza tra amici</p>
+        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+          <div>
+            <h1 class="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Cosa ci serve?</h1>
+            <p class="mt-2 text-slate-500">Provviste, snack e brindisi in compagnia: organizzate tutto, acqua fresca inclusa.</p>
+          </div>
+          <div class="flex gap-2">
+            <div class="min-w-24 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
+              <span class="block text-xl font-bold text-slate-900">{{ shoppingList.remainingCount() }}</span>
+              <span class="text-xs text-slate-500">da prendere</span>
+            </div>
+            <div class="min-w-24 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm">
+              <span class="block text-xl font-bold text-slate-900">{{ shoppingList.completedCount() }}</span>
+              <span class="text-xs text-slate-500">nel carrello</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mb-5 rounded-3xl border border-slate-200/80 bg-white p-4 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.28)] sm:p-6" aria-labelledby="statistics-title">
+        <div class="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Tutto sotto controllo</p>
+            <h2 id="statistics-title" class="mt-1 text-xl font-bold tracking-tight text-slate-900">Statistiche per categoria</h2>
+          </div>
+          <p class="text-sm text-slate-500">Articoli presi e quota sul totale della lista.</p>
+        </div>
+        @if (shoppingList.categoryStats().length === 0) {
+          <div class="rounded-2xl bg-[#f7f8f4] px-4 py-5 text-sm text-slate-500">
+            <span class="mr-1" aria-hidden="true">🥂</span>
+            Le statistiche si riempiranno man mano che aggiungete le provviste per la vacanza.
+          </div>
+        } @else {
+          <div class="grid gap-3 sm:grid-cols-2">
+            @for (stat of shoppingList.categoryStats(); track stat.id) {
+              <article class="rounded-2xl border border-slate-100 bg-[#fbfcfa] p-4">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="flex min-w-0 items-center gap-2.5">
+                    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-xl" aria-hidden="true">{{ stat.emoji }}</span>
+                    <div class="min-w-0">
+                      <h3 class="truncate font-semibold text-slate-800">{{ stat.label }}</h3>
+                      <p class="text-xs text-slate-500">{{ stat.count }} {{ stat.count === 1 ? 'articolo' : 'articoli' }} · {{ stat.sharePercent }}% della lista</p>
+                    </div>
+                  </div>
+                  <span class="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-500">{{ stat.completed }}/{{ stat.count }} presi</span>
+                </div>
+                <div class="mt-4 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" [attr.aria-label]="'Articoli presi in ' + stat.label" aria-valuemin="0" [attr.aria-valuemax]="stat.count" [attr.aria-valuenow]="stat.completed">
+                  <div class="h-full rounded-full bg-emerald-600 transition-all" [style.width.%]="stat.progressPercent"></div>
+                </div>
+                <p class="mt-1.5 text-right text-xs text-slate-400">{{ stat.progressPercent }}% preso</p>
+              </article>
+            }
+          </div>
+        }
+        <p class="mt-4 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-400">
+          Per i brindisi alcolici in compagnia, scegliete con responsabilità e organizzate sempre acqua e un rientro sicuro.
+        </p>
+      </section>
+
+      <section class="rounded-3xl border border-slate-200/80 bg-white p-4 shadow-[0_12px_40px_-28px_rgba(15,23,42,0.28)] sm:p-6">
+        <form class="flex flex-col gap-3 sm:flex-row" (ngSubmit)="addItem()">
+          <label class="sr-only" for="item-name">Nome articolo</label>
+          <input
+            id="item-name"
+            class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10"
+            type="text"
+            name="itemName"
+            [(ngModel)]="itemName"
+            maxlength="80"
+            autocomplete="off"
+            placeholder="Per esempio: pomodori"
+            required
+          />
+          <label class="sr-only" for="item-quantity">Quantità</label>
+          <div class="flex flex-wrap gap-3 sm:flex-nowrap">
+            <label class="sr-only" for="item-category">Categoria</label>
+            <select
+              id="item-category"
+              class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3.5 text-sm outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10 sm:w-44 sm:flex-none"
+              name="category"
+              [(ngModel)]="selectedCategory"
+              aria-label="Categoria articolo"
+            >
+              @for (category of categories; track category.id) {
+                <option [ngValue]="category.id">{{ category.emoji }} {{ category.label }}</option>
+              }
+            </select>
+            <input
+              id="item-quantity"
+              class="w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3.5 text-center text-base outline-none transition focus:border-emerald-600 focus:bg-white focus:ring-4 focus:ring-emerald-600/10"
+              type="number"
+              name="quantity"
+              [(ngModel)]="quantity"
+              min="1"
+              max="999"
+              aria-label="Quantità"
+              required
+            />
+            <button class="flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 py-3.5 font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-700/20 sm:flex-none" type="submit">
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" class="h-5 w-5">
+                <path d="M10 4v12m6-6H4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+              Aggiungi
+            </button>
+          </div>
+        </form>
+
+        @if (shoppingList.error()) {
+          <p class="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">{{ shoppingList.error() }}</p>
+        }
+
+        <div class="mt-7 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div class="flex gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Filtra articoli">
+            <button class="rounded-lg px-3 py-2 text-sm font-medium transition" [class.bg-white]="filter() === 'all'" [class.text-slate-900]="filter() === 'all'" [class.shadow-sm]="filter() === 'all'" [class.text-slate-500]="filter() !== 'all'" type="button" role="tab" [attr.aria-selected]="filter() === 'all'" (click)="filter.set('all')">Tutti</button>
+            <button class="rounded-lg px-3 py-2 text-sm font-medium transition" [class.bg-white]="filter() === 'active'" [class.text-slate-900]="filter() === 'active'" [class.shadow-sm]="filter() === 'active'" [class.text-slate-500]="filter() !== 'active'" type="button" role="tab" [attr.aria-selected]="filter() === 'active'" (click)="filter.set('active')">Da prendere</button>
+            <button class="rounded-lg px-3 py-2 text-sm font-medium transition" [class.bg-white]="filter() === 'completed'" [class.text-slate-900]="filter() === 'completed'" [class.shadow-sm]="filter() === 'completed'" [class.text-slate-500]="filter() !== 'completed'" type="button" role="tab" [attr.aria-selected]="filter() === 'completed'" (click)="filter.set('completed')">Nel carrello</button>
+          </div>
+          @if (shoppingList.completedCount() > 0) {
+            <button class="text-sm font-medium text-slate-400 transition hover:text-red-600" type="button" (click)="shoppingList.clearCompleted()">Rimuovi acquistati</button>
+          }
+        </div>
+
+        @if (shoppingList.isLoading()) {
+          <div class="flex min-h-48 items-center justify-center text-sm text-slate-400" role="status">Caricamento della lista…</div>
+        } @else if (visibleItems().length === 0) {
+          <div class="flex min-h-64 flex-col items-center justify-center px-4 text-center">
+            <span class="mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-emerald-50 text-emerald-700">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" class="h-8 w-8">
+                <path d="M5 8h14l-1 12H6L5 8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+                <path d="M9 9V6a3 3 0 0 1 6 0v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+              </svg>
+            </span>
+            <h2 class="text-lg font-semibold text-slate-800">
+              @if (filter() === 'completed') {
+                Ancora niente nel carrello
+              } @else if (filter() === 'active') {
+                Tutto fatto!
+              } @else {
+                La lista è vuota
+              }
+            </h2>
+            <p class="mt-1 max-w-xs text-sm leading-6 text-slate-500">
+              @if (filter() === 'active') {
+                Hai spuntato tutto. Buona spesa!
+              } @else {
+                Aggiungi le provviste: snack per la serata e qualcosa di fresco da bere.
+              }
+            </p>
+          </div>
+        } @else {
+          <ul class="divide-y divide-slate-100" aria-label="Articoli della lista">
+            @for (item of visibleItems(); track item.id) {
+              <li class="item-row flex items-center gap-3 py-4 first:pt-4 sm:gap-4">
+                <button
+                  type="button"
+                  class="grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 transition focus:outline-none focus:ring-4 focus:ring-emerald-600/15"
+                  [class.border-emerald-600]="item.done"
+                  [class.bg-emerald-600]="item.done"
+                  [class.border-slate-300]="!item.done"
+                  [attr.aria-label]="item.done ? 'Segna ' + item.name + ' come da prendere' : 'Segna ' + item.name + ' come acquistato'"
+                  [attr.aria-pressed]="item.done"
+                  (click)="shoppingList.toggleItem(item.id)"
+                >
+                  @if (item.done) {
+                    <svg aria-hidden="true" viewBox="0 0 16 16" fill="none" class="h-4 w-4 text-white">
+                      <path d="m3.5 8 3 3 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                  }
+                </button>
+                <span class="min-w-0 flex-1 truncate text-base font-medium transition" [class.text-slate-400]="item.done" [class.line-through]="item.done">
+                  {{ item.name }}
+                </span>
+                <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-600">× {{ item.quantity }}</span>
+                <button
+                  type="button"
+                  class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-300 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-4 focus:ring-red-100"
+                  [attr.aria-label]="'Elimina ' + item.name"
+                  (click)="shoppingList.removeItem(item.id)"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" class="h-5 w-5">
+                    <path d="M4.5 6h11m-9.5 0 .6 10h7.8L15 6m-7-2h4l.7 2H7.3L8 4Zm.5 5v4m3-4v4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+
+        @if (shoppingList.items().length > 0) {
+          <div class="mt-2 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-400">
+            <span>{{ shoppingList.items().length }} {{ shoppingList.items().length === 1 ? 'articolo' : 'articoli' }} in lista</span>
+            <span>{{ shoppingList.remainingCount() === 0 ? 'Pronti per la vacanza ✨' : 'Ricordate anche acqua e snack' }}</span>
+          </div>
+        }
+      </section>
+
+      <p class="mt-5 text-center text-xs leading-5 text-slate-400">
+        @if (shoppingList.isCloudConfigured()) {
+          La lista è sincronizzata con il tuo account Firebase.
+        } @else {
+          I tuoi articoli vengono salvati in questo browser. Configura Firebase per sincronizzarli tra dispositivi.
+        }
+      </p>
+    }
+  </div>
+</main>
