@@ -14,15 +14,37 @@
         </span>
       </a>
 
-      <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-sm">
+      <div
+        class="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-sm"
+        [attr.title]="shoppingList.firebaseProjectId() ? 'Progetto Firebase: ' + shoppingList.firebaseProjectId() : null"
+      >
         @if (shoppingList.requiresCloudSetup()) {
           <span class="h-2 w-2 rounded-full bg-red-500"></span>
           <span class="hidden sm:inline">Database non configurato</span>
           <span class="sm:hidden">Offline</span>
         } @else if (shoppingList.isCloudConfigured()) {
           @if (shoppingList.isSignedIn()) {
-            <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-            <span class="hidden sm:inline">Sincronizzazione attiva</span>
+            @switch (shoppingList.cloudSyncStatus()) {
+              @case ('synced') {
+                <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                <span>Sincronizzazione attiva</span>
+              }
+              @case ('pending') {
+                <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+                <span>Invio modifiche…</span>
+              }
+              @case ('error') {
+                <span class="h-2 w-2 rounded-full bg-red-500"></span>
+                <span>Errore sincronizzazione</span>
+              }
+              @default {
+                <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+                <span>Verifica connessione…</span>
+              }
+            }
+            @if (shoppingList.firebaseProjectId()) {
+              <span class="hidden text-slate-400 sm:inline">· {{ shoppingList.firebaseProjectId() }}</span>
+            }
             <button type="button" class="ml-1 text-slate-400 transition hover:text-slate-700" (click)="shoppingList.signOut()" aria-label="Esci">
               <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" class="h-4 w-4">
                 <path d="M8 3H4v14h4m4-3 4-4-4-4m4 4H8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
@@ -269,7 +291,7 @@
             <button class="rounded-lg px-3 py-2 text-sm font-medium transition" [class.bg-white]="filter() === 'completed'" [class.text-slate-900]="filter() === 'completed'" [class.shadow-sm]="filter() === 'completed'" [class.text-slate-500]="filter() !== 'completed'" type="button" role="tab" [attr.aria-selected]="filter() === 'completed'" (click)="filter.set('completed')">Nel carrello</button>
           </div>
           @if (shoppingList.completedCount() > 0) {
-            <button class="text-sm font-medium text-slate-400 transition hover:text-red-600" type="button" (click)="shoppingList.clearCompleted()">Rimuovi acquistati</button>
+            <button class="text-sm font-medium text-slate-400 transition hover:text-red-600" type="button" (click)="clearCompleted()">Rimuovi acquistati</button>
           }
         </div>
 
@@ -419,6 +441,9 @@
       <p class="mt-5 text-center text-xs leading-5 text-slate-400">
         @if (shoppingList.isCloudConfigured()) {
           La lista è sincronizzata con il tuo account Firebase.
+          @if (shoppingList.firebaseProjectId()) {
+            <span class="block">Progetto Firebase: {{ shoppingList.firebaseProjectId() }}</span>
+          }
         } @else {
           I tuoi articoli vengono salvati in questo browser. Configura Firebase per sincronizzarli tra dispositivi.
         }

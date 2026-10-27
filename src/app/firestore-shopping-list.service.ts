@@ -8,6 +8,7 @@ import { FirebaseRuntimeConfigService } from './firebase-runtime-config.service'
 import { resolveShoppingCategory, type ShoppingItem } from './shopping-list.service';
 
 type FirebaseClients = { auth: Auth; database: Firestore };
+export type CloudSyncStatus = 'checking' | 'synced' | 'pending' | 'error' | 'not-connected';
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreShoppingListService {
@@ -51,7 +52,11 @@ export class FirestoreShoppingListService {
     await signOut(auth);
   }
 
-  watchItems(next: (items: ShoppingItem[]) => void, error: (error: Error) => void): () => void {
+  watchItems(
+    next: (items: ShoppingItem[]) => void,
+    error: (error: Error) => void,
+    syncStatus: (status: CloudSyncStatus) => void = () => {},
+  ): () => void {
     let cancelled = false;
     let unsubscribe = () => {};
     void Promise.all([this.getClients(), import('firebase/firestore')])
@@ -61,25 +66,40 @@ export class FirestoreShoppingListService {
           firestore.orderBy('createdAt', 'asc'),
         );
         if (!cancelled) {
-          unsubscribe = firestore.onSnapshot(itemsQuery, (snapshot) => {
-            next(snapshot.docs.map((itemDocument) => {
-              const data = itemDocument.data();
-              return {
-                id: itemDocument.id,
-                name: data['name'] as string,
-                quantity: data['quantity'] as number,
-                done: data['done'] as boolean,
-                createdAt: data['createdAt'] as number,
-                category: resolveShoppingCategory(data['category'], data['name'] as string),
-                amountPerUnit: typeof data['amountPerUnit'] === 'number' && data['amountPerUnit'] > 0
-                  ? data['amountPerUnit']
-                  : null,
-                measureUnit: ['kg', 'g', 'L', 'ml'].includes(data['measureUnit'] as string)
-                  ? data['measureUnit'] as ShoppingItem['measureUnit']
-                  : null,
-              };
-            }));
-          }, error);
+          unsubscribe = firestore.onSnapshot(
+            itemsQuery,
+            { includeMetadataChanges: true },
+            (snapshot) => {
+              syncStatus(
+                snapshot.metadata.hasPendingWrites
+                  ? 'pending'
+                  : snapshot.metadata.fromCache
+                    ? 'checking'
+                    : 'synced',
+              );
+              next(snapshot.docs.map((itemDocument) => {
+                const data = itemDocument.data();
+                return {
+                  id: itemDocument.id,
+                  name: data['name'] as string,
+                  quantity: data['quantity'] as number,
+                  done: data['done'] as boolean,
+                  createdAt: data['createdAt'] as number,
+                  category: resolveShoppingCategory(data['category'], data['name'] as string),
+                  amountPerUnit: typeof data['amountPerUnit'] === 'number' && data['amountPerUnit'] > 0
+                    ? data['amountPerUnit']
+                    : null,
+                  measureUnit: ['kg', 'g', 'L', 'ml'].includes(data['measureUnit'] as string)
+                    ? data['measureUnit'] as ShoppingItem['measureUnit']
+                    : null,
+                };
+              }));
+            },
+            (reason) => {
+              syncStatus('error');
+              error(this.asError(reason));
+            },
+          );
         }
       })
       .catch((reason: unknown) => {
@@ -146,7 +166,11 @@ export class FirestoreShoppingListService {
       const app = appSdk.initializeApp(config);
       return {
         auth: authSdk.getAuth(app),
-        database: firestoreSdk.getFirestore(app),
+        database: firestoreSdk.initializeFirestore(app, {
+          localCache: firestoreSdk.persistentLocalCache({
+            tabManager: firestoreSdk.persistentMultipleTabManager(),
+          }),
+        }),
       };
     });
     return this.clients;

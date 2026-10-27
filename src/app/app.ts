@@ -180,4 +180,11 @@ export class App {
       this.password = '';
     }
   }
+
+  protected clearCompleted(): void {
+    const count = this.shoppingList.completedCount();
+    if (count > 0 && window.confirm(`Eliminare definitivamente ${count} prodotti acquistati?`)) {
+      void this.shoppingList.clearCompleted();
+    }
+  }
 }

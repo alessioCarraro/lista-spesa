@@ -28,11 +28,11 @@ Senza una configurazione Firebase, la lista funziona subito e viene salvata nel 
    - `FIREBASE_APP_ID`
 6. Assicurati che le variabili siano abilitate per **Production** (e Preview, se serve) e ridistribuisci il progetto. La Function `api/firebase-config.js` le fornisce all'app come configurazione Firebase Web pubblica: non mettere password o chiavi di servizio in queste variabili.
 7. In Firestore Rules, sostituisci `replace-with-your-email@example.com` in `firestore.rules` con l'indirizzo dell'account e pubblica le regole.
-8. Apri il deploy Vercel aggiornato e accedi con lo stesso account da ogni dispositivo.
+8. Apri il deploy Vercel aggiornato e accedi con lo stesso account da ogni dispositivo. Quando la connessione al server è confermata, l'indicatore mostra **Sincronizzazione attiva**; mentre le modifiche sono ancora in invio mostra **Invio modifiche…**.
 
-Le regole limitano lettura e scrittura all'utente autenticato con l'indirizzo specificato. Le credenziali Firebase della Web App non sono segreti: è l'autenticazione insieme alle regole Firestore a proteggere i dati. Non committare password dell'account.
+Le regole limitano lettura e scrittura all'utente autenticato con l'indirizzo specificato. Le credenziali Firebase della Web App non sono segreti: è l'autenticazione insieme alle regole Firestore a proteggere i dati. Non committare password dell'account. Il progetto Firebase attivo viene mostrato accanto allo stato di sincronizzazione: deve essere lo stesso per tutte le versioni/distribuzioni che devono condividere la lista. In Vercel controlla le variabili sia per l'ambiente **Production** sia per **Preview**, se utilizzi entrambi.
 
-Il deploy di produzione non usa il salvataggio locale come ripiego: se le variabili Firebase mancano, mostra un messaggio di configurazione e non accetta modifiche, per evitare liste diverse e apparentemente salvate su ciascun dispositivo. In sviluppo locale senza Firebase, `localStorage` resta disponibile per provare l'interfaccia. Al primo accesso cloud, se Firestore è ancora vuoto, gli articoli salvati localmente su quel browser vengono trasferiti automaticamente alla lista condivisa.
+Il deploy di produzione non usa il salvataggio locale come ripiego: se le variabili Firebase mancano, mostra un messaggio di configurazione e non accetta modifiche, per evitare liste diverse e apparentemente salvate su ciascun dispositivo. Firestore usa una cache persistente condivisa tra schede dello stesso browser; lo stato distingue i dati in attesa di invio da quelli confermati dal server. In sviluppo locale senza Firebase, `localStorage` resta disponibile per provare l'interfaccia. Al primo accesso cloud, se Firestore è ancora vuoto, gli articoli salvati localmente su quel browser vengono trasferiti automaticamente alla lista condivisa.
 
 ## Struttura
 

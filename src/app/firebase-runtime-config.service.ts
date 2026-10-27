@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { computed, Injectable, signal } from '@angular/core';
 import { environment } from '../environments/environment';
 
 export interface FirebaseWebConfig {
@@ -13,6 +13,7 @@ export class FirebaseRuntimeConfigService {
   private readonly configState = signal<FirebaseWebConfig | null>(null);
 
   readonly config = this.configState.asReadonly();
+  readonly projectId = computed(() => this.configState()?.projectId ?? null);
   readonly requiresCloud = environment.production;
   readonly isConfigured = (): boolean => this.configState() !== null;
 

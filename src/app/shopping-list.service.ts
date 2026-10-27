@@ -1,5 +1,5 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { FirestoreShoppingListService } from './firestore-shopping-list.service';
+import { FirestoreShoppingListService, type CloudSyncStatus } from './firestore-shopping-list.service';
 import { FirebaseRuntimeConfigService } from './firebase-runtime-config.service';
 
 export interface ShoppingItem {
@@ -100,14 +100,17 @@ export class ShoppingListService {
   private readonly itemState = signal<ShoppingItem[]>([]);
   private readonly loadingState = signal(true);
   private readonly signedInState = signal(false);
+  private readonly syncStatusState = signal<CloudSyncStatus>('not-connected');
   private readonly errorState = signal<string | null>(null);
   private unsubscribeItems?: () => void;
 
   readonly items = this.itemState.asReadonly();
   readonly isLoading = this.loadingState.asReadonly();
   readonly isSignedIn = this.signedInState.asReadonly();
+  readonly cloudSyncStatus = this.syncStatusState.asReadonly();
   readonly error = this.errorState.asReadonly();
   readonly isCloudConfigured = this.firestore.isConfigured;
+  readonly firebaseProjectId = this.runtimeConfig.projectId;
   readonly requiresCloudSetup = computed(() => this.runtimeConfig.requiresCloud && !this.isCloudConfigured());
   readonly productCount = computed(() => this.itemState().reduce((sum, item) => sum + item.quantity, 0));
   readonly remainingCount = computed(() => this.itemState().filter((item) => !item.done).reduce((sum, item) => sum + item.quantity, 0));
@@ -155,6 +158,7 @@ export class ShoppingListService {
       this.unsubscribeItems?.();
       this.unsubscribeItems = undefined;
       this.signedInState.set(!!user);
+      this.syncStatusState.set(user ? 'checking' : 'not-connected');
       this.itemState.set([]);
       this.errorState.set(null);
 
@@ -191,9 +195,11 @@ export class ShoppingListService {
             this.loadingState.set(false);
           },
           (error) => {
+            this.syncStatusState.set('error');
             this.errorState.set(this.messageFor(error));
             this.loadingState.set(false);
           },
+          (status) => this.syncStatusState.set(status),
         );
       } else {
         this.loadingState.set(false);
@@ -329,6 +335,9 @@ export class ShoppingListService {
     try {
       await change();
     } catch (error) {
+      if (this.isCloudConfigured()) {
+        this.syncStatusState.set('error');
+      }
       this.errorState.set(this.messageFor(error));
     }
   }
