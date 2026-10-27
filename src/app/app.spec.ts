@@ -14,6 +14,7 @@ describe('App', () => {
             isLoading: () => false,
             isSignedIn: () => false,
             isCloudConfigured: () => false,
+            requiresCloudSetup: () => false,
             error: () => null,
             remainingCount: () => 0,
             completedCount: () => 0,

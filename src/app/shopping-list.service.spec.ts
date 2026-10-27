@@ -88,4 +88,51 @@ describe('ShoppingListService', () => {
     expect(restoredList.items()[0].amountPerUnit).toBeNull();
     expect(restoredList.items()[0].measureUnit).toBeNull();
   });
+
+  it('migrates the existing browser list when the shared Firestore list is empty', async () => {
+    const savedItem = {
+      id: 'existing-product',
+      name: 'Birra',
+      quantity: 5,
+      done: false,
+      createdAt: 1,
+    };
+    localStorage.setItem('spesa-semplice-items', JSON.stringify([savedItem]));
+
+    let receiveItems: ((items: never[]) => void) | undefined;
+    const migrateItems = jasmine.createSpy('migrateItems').and.resolveTo();
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [{
+        provide: FirestoreShoppingListService,
+        useValue: {
+          isConfigured: () => true,
+          watchAuth: (next: (user: { uid: string } | null) => void) => {
+            next({ uid: 'personal-account' });
+            return () => {};
+          },
+          watchItems: (next: (items: never[]) => void) => {
+            receiveItems = next;
+            return () => {};
+          },
+          migrateItems,
+        },
+      }],
+    });
+
+    TestBed.inject(ShoppingListService);
+    receiveItems?.([]);
+    await Promise.resolve();
+
+    expect(migrateItems).toHaveBeenCalledWith([
+      jasmine.objectContaining({
+        id: 'existing-product',
+        name: 'Birra',
+        quantity: 5,
+        category: 'alcolici',
+        amountPerUnit: null,
+        measureUnit: null,
+      }),
+    ]);
+  });
 });

@@ -1,20 +1,20 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import {
   Auth,
   User,
 } from 'firebase/auth';
 import { Firestore } from 'firebase/firestore';
-import { environment } from '../environments/environment';
+import { FirebaseRuntimeConfigService } from './firebase-runtime-config.service';
 import { resolveShoppingCategory, type ShoppingItem } from './shopping-list.service';
 
 type FirebaseClients = { auth: Auth; database: Firestore };
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreShoppingListService {
-  private readonly configured = Object.values(environment.firebase).every((value) => value.length > 0);
+  private readonly runtimeConfig = inject(FirebaseRuntimeConfigService);
   private clients?: Promise<FirebaseClients>;
 
-  readonly isConfigured = (): boolean => this.configured;
+  readonly isConfigured = this.runtimeConfig.isConfigured;
 
   watchAuth(next: (user: User | null) => void, error: (error: Error) => void): () => void {
     let cancelled = false;
@@ -103,6 +103,19 @@ export class FirestoreShoppingListService {
     await firestore.addDoc(firestore.collection(database, 'shopping-items'), data);
   }
 
+  async migrateItems(items: ShoppingItem[]): Promise<void> {
+    const [{ database }, firestore] = await Promise.all([
+      this.getClients(),
+      import('firebase/firestore'),
+    ]);
+    const batch = firestore.writeBatch(database);
+    for (const item of items) {
+      const { id, ...data } = item;
+      batch.set(firestore.doc(database, 'shopping-items', id), data);
+    }
+    await batch.commit();
+  }
+
   async updateItem(item: ShoppingItem): Promise<void> {
     const [{ database }, firestore] = await Promise.all([
       this.getClients(),
@@ -121,7 +134,8 @@ export class FirestoreShoppingListService {
   }
 
   private getClients(): Promise<FirebaseClients> {
-    if (!this.configured) {
+    const config = this.runtimeConfig.config();
+    if (!config) {
       return Promise.reject(new Error('Firebase non è configurato.'));
     }
     this.clients ??= Promise.all([
@@ -129,7 +143,7 @@ export class FirestoreShoppingListService {
       import('firebase/auth'),
       import('firebase/firestore'),
     ]).then(([appSdk, authSdk, firestoreSdk]) => {
-      const app = appSdk.initializeApp(environment.firebase);
+      const app = appSdk.initializeApp(config);
       return {
         auth: authSdk.getAuth(app),
         database: firestoreSdk.getFirestore(app),

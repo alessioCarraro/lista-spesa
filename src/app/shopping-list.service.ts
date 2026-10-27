@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { FirestoreShoppingListService } from './firestore-shopping-list.service';
+import { FirebaseRuntimeConfigService } from './firebase-runtime-config.service';
 
 export interface ShoppingItem {
   id: string;
@@ -95,6 +96,7 @@ export function formatTotalMeasure(amount: number, dimension: 'weight' | 'volume
 @Injectable({ providedIn: 'root' })
 export class ShoppingListService {
   private readonly firestore = inject(FirestoreShoppingListService);
+  private readonly runtimeConfig = inject(FirebaseRuntimeConfigService);
   private readonly itemState = signal<ShoppingItem[]>([]);
   private readonly loadingState = signal(true);
   private readonly signedInState = signal(false);
@@ -106,6 +108,7 @@ export class ShoppingListService {
   readonly isSignedIn = this.signedInState.asReadonly();
   readonly error = this.errorState.asReadonly();
   readonly isCloudConfigured = this.firestore.isConfigured;
+  readonly requiresCloudSetup = computed(() => this.runtimeConfig.requiresCloud && !this.isCloudConfigured());
   readonly productCount = computed(() => this.itemState().reduce((sum, item) => sum + item.quantity, 0));
   readonly remainingCount = computed(() => this.itemState().filter((item) => !item.done).reduce((sum, item) => sum + item.quantity, 0));
   readonly completedCount = computed(() => this.itemState().filter((item) => item.done).reduce((sum, item) => sum + item.quantity, 0));
@@ -139,7 +142,12 @@ export class ShoppingListService {
 
   constructor() {
     if (!this.isCloudConfigured()) {
-      this.loadLocalItems();
+      if (this.runtimeConfig.requiresCloud) {
+        this.errorState.set('La sincronizzazione cloud non è configurata. Aggiungi le variabili Firebase nelle impostazioni Vercel e ridistribuisci il progetto.');
+        this.loadingState.set(false);
+      } else {
+        this.loadLocalItems();
+      }
       return;
     }
 
@@ -152,8 +160,27 @@ export class ShoppingListService {
 
       if (user) {
         this.loadingState.set(true);
+        let migrationAttempted = false;
         this.unsubscribeItems = this.firestore.watchItems(
           (items) => {
+            if (items.length === 0 && !migrationAttempted) {
+              migrationAttempted = true;
+              try {
+                const localItems = this.readSavedItems();
+                if (localItems.length > 0) {
+                  this.loadingState.set(true);
+                  void this.firestore.migrateItems(localItems).then(() => {
+                    localStorage.removeItem(STORAGE_KEY);
+                  }).catch((error: unknown) => {
+                    this.errorState.set(this.messageFor(error));
+                    this.loadingState.set(false);
+                  });
+                  return;
+                }
+              } catch (error) {
+                this.errorState.set(`Impossibile trasferire la lista salvata su questo dispositivo: ${this.messageFor(error)}`);
+              }
+            }
             this.itemState.set(items);
             this.loadingState.set(false);
           },
@@ -198,6 +225,11 @@ export class ShoppingListService {
     amountPerUnit: number | null,
     measureUnit: MeasureUnit | null,
   ): Promise<void> {
+    if (this.requiresCloudSetup()) {
+      this.errorState.set('La lista non è sincronizzata. Configura Firebase su Vercel prima di aggiungere prodotti.');
+      return;
+    }
+
     const item: ShoppingItem = {
       id: crypto.randomUUID(),
       name,
@@ -220,6 +252,11 @@ export class ShoppingListService {
   }
 
   async toggleItem(id: string): Promise<void> {
+    if (this.requiresCloudSetup()) {
+      this.errorState.set('La lista non è sincronizzata. Configura Firebase su Vercel prima di modificarla.');
+      return;
+    }
+
     const item = this.itemState().find((entry) => entry.id === id);
     if (!item) {
       return;
@@ -229,6 +266,11 @@ export class ShoppingListService {
   }
 
   async removeItem(id: string): Promise<void> {
+    if (this.requiresCloudSetup()) {
+      this.errorState.set('La lista non è sincronizzata. Configura Firebase su Vercel prima di modificarla.');
+      return;
+    }
+
     await this.persistChange(async () => {
       if (this.isCloudConfigured()) {
         await this.firestore.removeItem(id);
@@ -268,29 +310,56 @@ export class ShoppingListService {
 
   private loadLocalItems(): void {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed: unknown = JSON.parse(saved);
-        if (!Array.isArray(parsed)) {
-          throw new Error('Il formato dei dati salvati non è valido.');
-        }
-        this.itemState.set((parsed as ShoppingItem[]).map((item) => {
-          const amountPerUnit = item.amountPerUnit;
-          return {
-            ...item,
-            category: resolveShoppingCategory(item.category, item.name),
-            amountPerUnit: amountPerUnit !== null && Number.isFinite(amountPerUnit) && amountPerUnit > 0
-              ? amountPerUnit
-              : null,
-            measureUnit: ['kg', 'g', 'L', 'ml'].includes(item.measureUnit ?? '') ? item.measureUnit : null,
-          };
-        }));
-      }
+      this.itemState.set(this.readSavedItems());
     } catch (error) {
       this.errorState.set(`Impossibile leggere la lista salvata: ${this.messageFor(error)}`);
     } finally {
       this.loadingState.set(false);
     }
+  }
+
+  private readSavedItems(): ShoppingItem[] {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) {
+      return [];
+    }
+    const parsed: unknown = JSON.parse(saved);
+    if (!Array.isArray(parsed)) {
+      throw new Error('Il formato dei dati salvati non è valido.');
+    }
+
+    return parsed.map((entry: unknown) => {
+      if (typeof entry !== 'object' || entry === null) {
+        throw new Error('Un prodotto salvato non ha un formato valido.');
+      }
+      const data = entry as Record<string, unknown>;
+      if (
+        typeof data['id'] !== 'string'
+        || typeof data['name'] !== 'string'
+        || typeof data['quantity'] !== 'number'
+        || typeof data['done'] !== 'boolean'
+        || typeof data['createdAt'] !== 'number'
+      ) {
+        throw new Error('Un prodotto salvato non ha un formato valido.');
+      }
+
+      const amountPerUnit = data['amountPerUnit'];
+      const measureUnit = data['measureUnit'];
+      return {
+        id: data['id'],
+        name: data['name'],
+        quantity: data['quantity'],
+        done: data['done'],
+        createdAt: data['createdAt'],
+        category: resolveShoppingCategory(data['category'], data['name']),
+        amountPerUnit: typeof amountPerUnit === 'number' && Number.isFinite(amountPerUnit) && amountPerUnit > 0
+          ? amountPerUnit
+          : null,
+        measureUnit: typeof measureUnit === 'string' && ['kg', 'g', 'L', 'ml'].includes(measureUnit)
+          ? measureUnit as ShoppingItem['measureUnit']
+          : null,
+      };
+    });
   }
 
   private saveLocalItems(items: ShoppingItem[]): void {

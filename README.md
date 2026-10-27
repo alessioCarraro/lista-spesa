@@ -21,18 +21,27 @@ Senza una configurazione Firebase, la lista funziona subito e viene salvata nel 
 2. Abilita **Authentication → Sign-in method → Email/Password**.
 3. In **Authentication → Users**, crea un solo utente personale. Non abilitare la registrazione pubblica: riutilizza questo account sui tuoi dispositivi.
 4. Crea un database **Cloud Firestore**.
-5. Copia `apiKey`, `authDomain`, `projectId` e `appId` della Web App in `src/environments/environment.ts`.
-6. In Firestore Rules, sostituisci `replace-with-your-email@example.com` in `firestore.rules` con l'indirizzo dell'account e pubblica le regole.
-7. Distribuisci l'app su un host HTTPS e accedi con lo stesso account da ogni dispositivo.
+5. In Vercel, apri **Project → Settings → Environment Variables** e aggiungi i valori della configurazione Firebase della Web App:
+   - `FIREBASE_API_KEY`
+   - `FIREBASE_AUTH_DOMAIN`
+   - `FIREBASE_PROJECT_ID`
+   - `FIREBASE_APP_ID`
+6. Assicurati che le variabili siano abilitate per **Production** (e Preview, se serve) e ridistribuisci il progetto. La Function `api/firebase-config.js` le fornisce all'app come configurazione Firebase Web pubblica: non mettere password o chiavi di servizio in queste variabili.
+7. In Firestore Rules, sostituisci `replace-with-your-email@example.com` in `firestore.rules` con l'indirizzo dell'account e pubblica le regole.
+8. Apri il deploy Vercel aggiornato e accedi con lo stesso account da ogni dispositivo.
 
 Le regole limitano lettura e scrittura all'utente autenticato con l'indirizzo specificato. Le credenziali Firebase della Web App non sono segreti: è l'autenticazione insieme alle regole Firestore a proteggere i dati. Non committare password dell'account.
+
+Il deploy di produzione non usa il salvataggio locale come ripiego: se le variabili Firebase mancano, mostra un messaggio di configurazione e non accetta modifiche, per evitare liste diverse e apparentemente salvate su ciascun dispositivo. In sviluppo locale senza Firebase, `localStorage` resta disponibile per provare l'interfaccia. Al primo accesso cloud, se Firestore è ancora vuoto, gli articoli salvati localmente su quel browser vengono trasferiti automaticamente alla lista condivisa.
 
 ## Struttura
 
 - `src/app/app.ts` e `src/app/app.html`: vista e interazioni dell'interfaccia.
 - `src/app/shopping-list.service.ts`: stato applicativo con `signal` e valori derivati con `computed`.
 - `src/app/firestore-shopping-list.service.ts`: autenticazione e operazioni realtime su Firestore.
-- `src/environments/environment.ts`: configurazione Firebase.
+- `api/firebase-config.js`: endpoint serverless Vercel che espone solo la configurazione pubblica della Web App.
+- `src/app/firebase-runtime-config.service.ts`: carica la configurazione cloud prima di avviare l'app.
+- `src/environments/environment.ts`: fallback Firebase per lo sviluppo locale.
 - `firestore.rules`: accesso al database riservato all'account personale.
 
 ## Comandi
